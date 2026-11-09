@@ -6,7 +6,9 @@ __pycache__/
 .verification/
 .verification-hidden-*/
 runtime/
-checkpoints/
+checkpoints/acestep-v15-turbo/model.safetensors
+checkpoints/acestep-5Hz-lm-1.7B/model.safetensors
+*.assembling
 dist/
 outputs/
 models--*/

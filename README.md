@@ -6,25 +6,51 @@ Outputs are 48 kHz stereo PCM24 WAVs with JSON settings/seed sidecars.
 ## GitHub Repository Contents
 
 This repository contains the application source, scripts, tests, dependency pins,
-provenance, and the local upstream patch. Model weights, bundled Python, installed
-dependencies, wheel archives, caches, generated audio, and `dist/` are intentionally
-excluded from Git because this is not a suitable store for the multi-gigabyte bundle.
-A Git clone by itself is not a runnable offline installation. Use the complete
-native bundle or the `utility` Docker transport image containing `ace-step.zip`
-for offline deployment; the image must first be published to your own registry.
+provenance, the local upstream patch, and all four model components under
+`checkpoints/`. Model binaries and large tokenizers use Git LFS. Bundled Python,
+installed dependencies, wheel archives, caches, generated audio, and `dist/` remain
+excluded. Cloning supplies the models, not the Python/dependency installation.
+For a completely offline deployment including dependencies, use the complete native
+bundle or the `utility` Docker transport image containing `ace-step.zip` instead.
 
-The upstream source is pinned as a Git submodule. To obtain the source for inspection
-or rebuilding:
+Install Git LFS using your approved process before cloning. With Git LFS and Python
+3.9 or newer available:
 
 ```bash
+git lfs install
 git clone --recurse-submodules https://github.com/racodess/music-utility.git
 cd music-utility
+git lfs pull
+python3 scripts/restore_models.py
+```
+
+The Turbo and 1.7B LM weight files exceed GitHub Free's 2 GB per-file limit. They
+are committed as numbered parts of at most 500 MB; the restore command reconstructs
+their original filenames and verifies SHA-256 hashes for all 28 model files. It is
+offline, safe to rerun, and does not replace already-valid weights. Keep the numbered
+parts: Git manages those files, not the two reconstructed originals. A missing or
+unhydrated LFS part causes an error rather than a Hugging Face download.
+
+The four model components are Turbo, Qwen3 text embeddings, the 1.7B musical-guidance
+LM, and the VAE. Their LFS payload is about 9.40 GiB, within the 10 GiB storage
+allowance if this account has no other LFS usage. The separate 10 GiB monthly
+download allowance covers roughly one full clone across all users, not unlimited
+downloads. Model updates can consume additional storage because LFS keeps old
+versions. Restore requires about 8 GB of extra disk space beyond the downloaded
+parts. GitHub quota enforcement can prevent downloads even from a public repository.
+
+The upstream source is pinned as a Git submodule. For source inspection or rebuilding
+on a fresh checkout, apply the retained patch:
+
+```bash
 git -C vendor/ACE-Step-1.5 apply ../../offline/upstream.patch
 ```
 
 Applying the patch is only needed for a fresh source checkout. Do not apply it again
-to the already-patched local installation. Runtime and checkpoint preparation are
-separate from cloning; the local-use commands below assume those assets are present.
+to the already-patched local installation. The local-use commands below assume the
+Python runtime and dependencies have also been installed. The upstream model manifest
+remains in `offline/models.json`; `offline/model-parts.json` records the published
+files, including the two Python shims synchronized by the validated local runtime.
 
 ## Local Use
 

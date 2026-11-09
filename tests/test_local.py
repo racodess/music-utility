@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from ace_step_local.api import create_app
 from ace_step_local.inference import Request, preflight
-from scripts import finalize, package_release
+from scripts import finalize, package_release, restore_models
 
 
 class InputTests(unittest.TestCase):
@@ -95,6 +95,63 @@ class ApiTests(unittest.TestCase):
 
 
 class PackagingTests(unittest.TestCase):
+    def model_fixture(self, root):
+        (root / "offline").mkdir()
+        (root / "checkpoints/turbo").mkdir(parents=True)
+        records = []
+        for name, data in (("turbo/model.safetensors", b"abcdefghijklmnopqrstuvwxyz"), ("config.json", b"{}")):
+            (root / "checkpoints" / name).write_bytes(data)
+            records.append({"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        (root / "offline/models.json").write_text(json.dumps({"files": records}))
+        return root / "checkpoints/turbo/model.safetensors"
+
+    def test_lfs_model_roundtrip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = self.model_fixture(root)
+            manifest = restore_models.prepare(root, part_size=11, max_file_size=20)
+            self.assertEqual([part["size"] for part in manifest["files"][0]["parts"]], [11, 11, 4])
+            original.unlink()
+            restore_models.restore(root)
+            self.assertEqual(original.read_bytes(), b"abcdefghijklmnopqrstuvwxyz")
+            modified = original.stat().st_mtime_ns
+            restore_models.restore(root)
+            self.assertEqual(original.stat().st_mtime_ns, modified)
+
+    def test_lfs_corruption_preserves_existing_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = self.model_fixture(root)
+            restore_models.prepare(root, part_size=11, max_file_size=20)
+            original.write_bytes(b"old incomplete weight")
+            original.with_name("model.safetensors.part002").write_text("version https://git-lfs.github.com/spec/v1\n")
+            with self.assertRaisesRegex(ValueError, "git lfs pull"):
+                restore_models.restore(root)
+            self.assertEqual(original.read_bytes(), b"old incomplete weight")
+            self.assertEqual(list(original.parent.glob("*.assembling")), [])
+
+    def test_lfs_rejects_traversal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "Invalid checkpoint path"):
+                restore_models.asset(Path(directory), "../outside")
+
+    def test_lfs_preserves_validated_model_shims(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.model_fixture(root)
+            shim = root / "checkpoints/configuration.py"
+            shim.write_bytes(b"validated local shim")
+            upstream = json.loads((root / "offline/models.json").read_text())
+            upstream["files"].append({"path": "configuration.py", "size": 1, "sha256": "0" * 64})
+            (root / "offline/models.json").write_text(json.dumps(upstream))
+            (root / "bundle-manifest.json").write_text(json.dumps({"files": [
+                {"path": "checkpoints/configuration.py", "size": shim.stat().st_size, "sha256": restore_models.checksum(shim)}
+            ]}))
+            manifest = restore_models.prepare(root, part_size=11, max_file_size=20)
+            self.assertEqual(manifest["model_files"][-1]["sha256"], restore_models.checksum(shim))
+            restore_models.restore(root)
+            self.assertEqual(json.loads((root / "offline/models.json").read_text()), upstream)
+
     def test_native_copy_relocation(self):
         import shutil
         from ace_step_local.inference import ROOT
