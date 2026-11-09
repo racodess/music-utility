@@ -1,0 +1,13 @@
+{
+  "python": "3.12.16",
+  "architecture": "arm64",
+  "upstream_commit": "ca1e85fe9430179831e6bc6be790c332190a3866",
+  "model_revision": "19671f406d603126926c1b7e2adc169acbcade22",
+  "minimum_macos": "26.0",
+  "upstream_patch_sha256": "7cf45f05b5c9084c77b15ae2e3467069fa705d5208898b1102a28a094ca82c45",
+  "backend": {
+    "dit": "mps-float16",
+    "lm": "mlx",
+    "vae": "mlx"
+  }
+}

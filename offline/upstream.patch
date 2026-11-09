@@ -1,0 +1,13 @@
+diff --git a/acestep/core/generation/handler/init_service_orchestrator.py b/acestep/core/generation/handler/init_service_orchestrator.py
+index 4b03224..f56b161 100644
+--- a/acestep/core/generation/handler/init_service_orchestrator.py
++++ b/acestep/core/generation/handler/init_service_orchestrator.py
+@@ -97,6 +97,8 @@ class InitServiceOrchestratorMixin:
+                         "[initialize_service] Pre-Ampere CUDA detected: "
+                         "using float16 instead of bfloat16."
+                     )
++            elif resolved_device == "mps":
++                self.dtype = torch.float16
+             else:
+                 self.dtype = torch.bfloat16 if resolved_device == "xpu" else torch.float32
+             self.quantization = normalized_quantization

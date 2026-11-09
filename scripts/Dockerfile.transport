@@ -1,0 +1,4 @@
+FROM scratch
+LABEL org.opencontainers.image.title="ACE-Step complete native macOS folder"
+LABEL org.opencontainers.image.description="Data only: extract /ace-step and run scripts/setup_native_copy.sh on an Apple Silicon Mac, not inside Docker."
+COPY . /ace-step/
